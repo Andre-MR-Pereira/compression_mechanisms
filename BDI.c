@@ -24,7 +24,7 @@ char example_cache_line[]={0,0,0,0,9,164,1,120,0,0,0,11,0,0,0,1,9,164,168,56,0,0
 
 long zero_base_number = ((long int)0<<56)|((long int)0<<48)|((long int)0<<40)|((long int)0<<32)|((long int)0<<24)|((long int)0<<16)|((long int)0<<8)| (long int)0;
 int zero_base_number_int=(0<<24) |(0<<16) |(0<<8) | 0;
-
+char zero_line_64[]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 char zero_line_32[]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 char zero_line_8[]={0,0,0,0,0,0,0,0};
 
@@ -38,11 +38,10 @@ int** bits_matrix_red;
 int** bits_matrix_green;
 int** bits_matrix_blue;
 
-int uncompressed_line_size=32;
-int BASE=8;
+int uncompressed_line_size=8;
 
-long compressible_line[32]; //NOTE uncompressed_line_size
-int bit_line[32];
+long compressible_line[8]; //NOTE uncompressed_line_size
+int bit_line[8]; //NOTE uncompressed_line_size
 
 int zeros_unit(unsigned char* line){
     int base_size=1,output=1;
@@ -474,8 +473,7 @@ int b2_d1_unit(unsigned char* line){
 }
 
 
-unsigned char* extract_line(int width,int height,int starting_position,unsigned char** matrix){
-    unsigned char* line;
+unsigned char* extract_line(int width,int height,int starting_position,unsigned char** matrix,unsigned char* line){
     int row,row_step=0,column,column_step=0;
 
     starting_position*=uncompressed_line_size;
@@ -483,7 +481,6 @@ unsigned char* extract_line(int width,int height,int starting_position,unsigned 
     row=starting_position/width;
     column=starting_position%width;
 
-    line=(unsigned char*)malloc(uncompressed_line_size*sizeof(unsigned char));
     for(int i=0;i<uncompressed_line_size;i++){
         if(row+row_step<height){
             line[i]=matrix[row+row_step][column+column_step];
@@ -501,139 +498,189 @@ unsigned char* extract_line(int width,int height,int starting_position,unsigned 
     return line;
 }
 
-long* assembly_cache_line(unsigned char* line){
-    long* compressed_line;
-    //linha com 32 entradas: fazer as diferencas
-    //printf("\nStart\n");
-    //printf("\t\tUnit tested: Zeros\n");
-    if(zeros_unit(line)==1){
-        //printf("Unit chosen: Zeros\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            compressed_line[i]=ZEROS[i];
+void assembly_cache_line(unsigned char* line,long* store){
+    if(uncompressed_line_size==8){
+        if(zeros_unit(line)==1){
+            for(int i=0;i<4;i++){
+                store[i]=ZEROS[i];
+            }
+            zeros_counter++;
+            return;
         }
-        zeros_counter++;
-        return compressed_line;
-    }
-    //printf("\n======================\n");
-    //printf("\t\tUnit tested: Rep.Values\n");
-    if(rep_values_unit(line)==1){
-        //printf("Unit chosen: Rep.Values\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            compressed_line[i]=REPEATED_VALUES[i];
+        /*if(rep_values_unit(line)==1){
+            for(int i=0;i<4;i++){
+                store[i]=REPEATED_VALUES[i];
+            }
+            for(int i=0;i<4+8;i++){
+                store[i+4]=compressible_line[i];
+            }
+            rep_val_counter++;
+            return;
+        }*/
+        if(b4_d1_unit(line)==1){
+            for(int i=0;i<4;i++){
+                store[i]=BASE4_D1[i];
+            }
+            for(int i=0;i<(uncompressed_line_size/4)+1;i++){
+                store[i+4]=compressible_line[i];
+            }
+            b4_d1_counter++;
+            return;
         }
-        for(int i=0;i<4+8;i++){
-            compressed_line[i+4]=compressible_line[i];
+        if(b2_d1_unit(line)==1){
+            for(int i=0;i<4;i++){
+                store[i]=BASE2_D1[i];
+            }
+            for(int i=0;i<(uncompressed_line_size/2)+1;i++){
+                store[i+4]=compressible_line[i];
+            }
+            b2_d1_counter++;
+            return;
         }
-        rep_val_counter++;
-        return compressed_line;
-    }
-    //printf("\n======================\n");
-    //printf("\t\tUnit tested: b8_d1\n");
-    if(b8_d1_unit(line)==1){
-        //printf("Unit chosen: b8_d1\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            compressed_line[i]=BASE8_D1[i];
+        if(b4_d2_unit(line)==1){
+            for(int i=0;i<4;i++){
+                store[i]=BASE4_D2[i];
+            }
+            for(int i=0;i<(uncompressed_line_size/4)+1;i++){
+                store[i+4]=compressible_line[i];
+            }
+            b4_d2_counter++;
+            return;
+        }else{
+            for(int i=0;i<4;i++){
+                store[i]=UNCOMPRESSED[i];
+            }
+            for(int i=0;i<uncompressed_line_size;i++){
+                store[i+4]=(long) line[i];
+            }
+            uncomp_counter++;
+            return;
         }
-        for(int i=0;i<(uncompressed_line_size/8)+1;i++){
-            compressed_line[i+4]=compressible_line[i];
-        }
-        b8_d1_counter++;
-        return compressed_line;
-    }
-    //printf("\n======================\n");
-    //printf("\t\tUnit tested: b4_d1\n");
-    if(b4_d1_unit(line)==1){
-        //printf("Unit chosen: b4_d1\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            compressed_line[i]=BASE4_D1[i];
-            //printf("%ld|\n",compressed_line[i]);
-        }
-        for(int i=0;i<(uncompressed_line_size/4)+1;i++){
-            compressed_line[i+4]=compressible_line[i];
-            //printf("%ld|\n",compressed_line[i]);
-        }
-        b4_d1_counter++;
-        return compressed_line;
-    }
-    //printf("\n======================\n");
-    //printf("\t\tUnit tested: b8_d2\n");
-    if(b8_d2_unit(line)==1){
-        //printf("\n\nUnit chosen: b8_d2\n\n"); //ANCHOR unidade
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        //printf("\nCode:");
-        for(int i=0;i<4;i++){
-            compressed_line[i]=BASE8_D2[i];
-            //printf("%ld|",compressed_line[i]);
-        }
-        //printf("\nValues:");
-        for(int i=0;i<(uncompressed_line_size/8)+1;i++){
-            compressed_line[i+4]=compressible_line[i];
-            //printf("%ld|",compressed_line[i+4]);
-        }
-        //printf("\n");
-        b8_d2_counter++;
-        return compressed_line;
-    }
-    //printf("\n======================\n");
-    //printf("\t\tUnit tested: b2_d1\n");
-    if(b2_d1_unit(line)==1){
-        //printf("Unit chosen: b2_d1\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            compressed_line[i]=BASE2_D1[i];
-        }
-        for(int i=0;i<(uncompressed_line_size/2)+1;i++){
-            compressed_line[i+4]=compressible_line[i];
-        }
-        b2_d1_counter++;
-        return compressed_line;
-    }
-    //printf("\n======================\n");
-    //printf("\t\tUnit tested: b4_d2\n");
-    if(b4_d2_unit(line)==1){
-        //printf("Unit chosen: b4_d2\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            compressed_line[i]=BASE4_D2[i];
-            //printf("%ld|",compressed_line[i]);
-        }
-        for(int i=0;i<(uncompressed_line_size/4)+1;i++){
-            compressed_line[i+4]=compressible_line[i];
-            //printf("%ld|",compressed_line[i+4]);
-        }
-        b4_d2_counter++;
-        return compressed_line;
-    }
-    //printf("\n======================\n");
-    //printf("\t\tUnit tested: b8_d4\n");
-    if(b8_d4_unit(line)==1){
-        //printf("Unit chosen: b8_d4\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            compressed_line[i]=BASE8_D4[i];
-        }
-        for(int i=0;i<(uncompressed_line_size/8)+1;i++){
-            compressed_line[i+4]=compressible_line[i];
-        }
-        b8_d4_counter++;
-        return compressed_line;
     }else{
+
+        //linha com 32 entradas: fazer as diferencas
+        //printf("\nStart\n");
+        //printf("\t\tUnit tested: Zeros\n");
+        if(zeros_unit(line)==1){
+            //printf("Unit chosen: Zeros\n");
+            for(int i=0;i<4;i++){
+                store[i]=ZEROS[i];
+            }
+            zeros_counter++;
+            return;
+        }
         //printf("\n======================\n");
-        //printf("Unit chosen: No compress\n");
-        compressed_line=(long*)malloc((4+uncompressed_line_size)*sizeof(long));
-        for(int i=0;i<4;i++){
-            //printf("Passa %ld para [%d]\n",UNCOMPRESSED[i],i);
-            compressed_line[i]=UNCOMPRESSED[i];
+        //printf("\t\tUnit tested: Rep.Values\n");
+        if(rep_values_unit(line)==1){
+            //printf("Unit chosen: Rep.Values\n");
+            for(int i=0;i<4;i++){
+                store[i]=REPEATED_VALUES[i];
+            }
+            for(int i=0;i<4+8;i++){
+                store[i+4]=compressible_line[i];
+            }
+            rep_val_counter++;
+            return;
         }
-        for(int i=0;i<uncompressed_line_size;i++){
-            compressed_line[i+4]=(long) line[i];
+        //printf("\n======================\n");
+        //printf("\t\tUnit tested: b8_d1\n");
+        if(b8_d1_unit(line)==1){
+            //printf("Unit chosen: b8_d1\n");
+            for(int i=0;i<4;i++){
+                store[i]=BASE8_D1[i];
+            }
+            for(int i=0;i<(uncompressed_line_size/8)+1;i++){
+                store[i+4]=compressible_line[i];
+            }
+            b8_d1_counter++;
+            return;
         }
-        uncomp_counter++;
-        return  compressed_line;
+        //printf("\n======================\n");
+        //printf("\t\tUnit tested: b4_d1\n");
+        if(b4_d1_unit(line)==1){
+            //printf("Unit chosen: b4_d1\n");
+            for(int i=0;i<4;i++){
+                store[i]=BASE4_D1[i];
+                //printf("%ld|\n",compressed_line[i]);
+            }
+            for(int i=0;i<(uncompressed_line_size/4)+1;i++){
+                store[i+4]=compressible_line[i];
+                //printf("%ld|\n",compressed_line[i]);
+            }
+            b4_d1_counter++;
+            return;
+        }
+        //printf("\n======================\n");
+        //printf("\t\tUnit tested: b8_d2\n");
+        if(b8_d2_unit(line)==1){
+            //printf("\n\nUnit chosen: b8_d2\n\n");
+            //printf("\nCode:");
+            for(int i=0;i<4;i++){
+                store[i]=BASE8_D2[i];
+                //printf("%ld|",compressed_line[i]);
+            }
+            //printf("\nValues:");
+            for(int i=0;i<(uncompressed_line_size/8)+1;i++){
+                store[i+4]=compressible_line[i];
+                //printf("%ld|",compressed_line[i+4]);
+            }
+            //printf("\n");
+            b8_d2_counter++;
+            return;
+        }
+        //printf("\n======================\n");
+        //printf("\t\tUnit tested: b2_d1\n");
+        if(b2_d1_unit(line)==1){
+            //printf("Unit chosen: b2_d1\n");
+            for(int i=0;i<4;i++){
+                store[i]=BASE2_D1[i];
+            }
+            for(int i=0;i<(uncompressed_line_size/2)+1;i++){
+                store[i+4]=compressible_line[i];
+            }
+            b2_d1_counter++;
+            return;
+        }
+        //printf("\n======================\n");
+        //printf("\t\tUnit tested: b4_d2\n");
+        if(b4_d2_unit(line)==1){
+            //printf("Unit chosen: b4_d2\n");
+            for(int i=0;i<4;i++){
+                store[i]=BASE4_D2[i];
+                //printf("%ld|",compressed_line[i]);
+            }
+            for(int i=0;i<(uncompressed_line_size/4)+1;i++){
+                store[i+4]=compressible_line[i];
+                //printf("%ld|",compressed_line[i+4]);
+            }
+            b4_d2_counter++;
+            return;
+        }
+        //printf("\n======================\n");
+        //printf("\t\tUnit tested: b8_d4\n");
+        if(b8_d4_unit(line)==1){
+            //printf("Unit chosen: b8_d4\n");
+            for(int i=0;i<4;i++){
+                store[i]=BASE8_D4[i];
+            }
+            for(int i=0;i<(uncompressed_line_size/8)+1;i++){
+                store[i+4]=compressible_line[i];
+            }
+            b8_d4_counter++;
+            return;
+        }else{
+            //printf("\n======================\n");
+            //printf("Unit chosen: No compress\n");
+            for(int i=0;i<4;i++){
+                //printf("Passa %ld para [%d]\n",UNCOMPRESSED[i],i);
+                store[i]=UNCOMPRESSED[i];
+            }
+            for(int i=0;i<uncompressed_line_size;i++){
+                store[i+4]=(long) line[i];
+            }
+            uncomp_counter++;
+            return;
+        }
     }
 }
 
@@ -663,14 +710,8 @@ void BDI(int width,int height,unsigned char** red,unsigned char** green,unsigned
     //printf("1: Unsigned char:%u\tBinary:%lld\tDecimal:%d\n",compression_matrix_red[0][1],intob(compression_matrix_red[0][1]),btoint(intob(compression_matrix_red[0][1])));
     //printf("2: Unsigned char:%u\tBinary:%lld\tDecimal:%d\n",compression_matrix_red[0][2],intob(compression_matrix_red[0][2]),btoint(intob(compression_matrix_red[0][2])));
     
-    for(int line=0;line<matrix_size/uncompressed_line_size;line++){
-        /*printf("Cache line is: [");
-        for(int j=0;j<uncompressed_line_size;j++){
-            printf("%d|",compression_matrix_red[line][j]);
-        }
-        printf("]\n");*/
-        compressed_line_red=assembly_cache_line(compression_matrix_red[line]);
-        uncompression_matrix_red[line]=compressed_line_red;
+    for(int line=0;line<compression_lines;line++){
+        assembly_cache_line(compression_matrix_red[line],uncompression_matrix_red[line]);
         for(int i=0;i<uncompressed_line_size;i++){
             bits_matrix_red[line][i]=bit_line[i];
         }
@@ -678,15 +719,13 @@ void BDI(int width,int height,unsigned char** red,unsigned char** green,unsigned
         //compressed_line_red[2],compressed_line_red[3],compressed_line_red[4],compressed_line_red[5],
         //compressed_line_red[6],compressed_line_red[7]);
         
-        compressed_line_green=assembly_cache_line(compression_matrix_green[line]);
-        uncompression_matrix_green[line]=compressed_line_green;
+        assembly_cache_line(compression_matrix_green[line],uncompression_matrix_green[line]);
         for(int i=0;i<uncompressed_line_size;i++){
             bits_matrix_green[line][i]=bit_line[i];
         }
 
 
-        compressed_line_blue=assembly_cache_line(compression_matrix_blue[line]);
-        uncompression_matrix_blue[line]=compressed_line_blue;
+        assembly_cache_line(compression_matrix_blue[line],uncompression_matrix_blue[line]);
         for(int i=0;i<uncompressed_line_size;i++){
             bits_matrix_blue[line][i]=bit_line[i];
         }
@@ -715,21 +754,49 @@ void BDI(int width,int height,unsigned char** red,unsigned char** green,unsigned
         bits_matrix_red[0][i]=bit_line[i];
     }*/
 
+    int b8_d1_multiplier,b8_d2_multiplier,b8_d4_multiplier,b4_d1_multiplier,b4_d2_multiplier,b2_d1_multiplier;
+
+    if(uncompressed_line_size==8){
+        b8_d1_multiplier=9;
+        b8_d2_multiplier=10;
+        b8_d4_multiplier=12;
+        b4_d1_multiplier=6;
+        b4_d2_multiplier=8;
+        b2_d1_multiplier=6;
+    }else if(uncompressed_line_size==32){
+        b8_d1_multiplier=12;
+        b8_d2_multiplier=16;
+        b8_d4_multiplier=24;
+        b4_d1_multiplier=12;
+        b4_d2_multiplier=20;
+        b2_d1_multiplier=18;
+    }else{
+        b8_d1_multiplier=16;
+        b8_d2_multiplier=24;
+        b8_d4_multiplier=40;
+        b4_d1_multiplier=20;
+        b4_d2_multiplier=36;
+        b2_d1_multiplier=34;
+    }
+
     printf("\t#####  Results #####\n");
     printf("Zeros: %d | %d\n",zeros_counter,zeros_counter);
     printf("Repeated Values: %d | %d\n",rep_val_counter,rep_val_counter*8);
-    printf("B8_D1: %d | %d\n",b8_d1_counter,b8_d1_counter*12);
-    printf("B8_D2: %d | %d\n",b8_d2_counter,b8_d2_counter*16);
-    printf("B8_D4: %d | %d\n",b8_d4_counter,b8_d4_counter*24);
-    printf("B4_D1: %d | %d\n",b4_d1_counter,b4_d1_counter*12);
-    printf("B4_D2: %d | %d\n",b4_d2_counter,b4_d2_counter*20);
-    printf("B2_D1: %d | %d\n",b2_d1_counter,b2_d1_counter*18);
-    printf("Uncompressed: %d | %d\n",uncomp_counter,uncomp_counter*32);
+    printf("B8_D1: %d | %d\n",b8_d1_counter,b8_d1_counter*b8_d1_multiplier);
+    printf("B8_D2: %d | %d\n",b8_d2_counter,b8_d2_counter*b8_d2_multiplier);
+    printf("B8_D4: %d | %d\n",b8_d4_counter,b8_d4_counter*b8_d4_multiplier);
+    printf("B4_D1: %d | %d\n",b4_d1_counter,b4_d1_counter*b4_d1_multiplier);
+    printf("B4_D2: %d | %d\n",b4_d2_counter,b4_d2_counter*b4_d2_multiplier);
+    printf("B2_D1: %d | %d\n",b2_d1_counter,b2_d1_counter*b2_d1_multiplier);
+    printf("Uncompressed: %d | %d\n",uncomp_counter,uncomp_counter*uncompressed_line_size);
     printf("\t Original byte size: %d | %d\n",3*compression_lines,3*matrix_size);
-    int final_byte=zeros_counter+rep_val_counter*8+b8_d1_counter*12+
-    b8_d2_counter*16+b8_d4_counter*24+b4_d1_counter*12+b4_d2_counter*20+
-    b4_d2_counter*20+b2_d1_counter*18+uncomp_counter*32;
-    printf("\t Final byte size: %d | %d\n",3*(compression_lines/2),final_byte);
+    
+    int final_byte=zeros_counter+rep_val_counter*8+b8_d1_counter*b8_d1_multiplier+
+    b8_d2_counter*b8_d2_multiplier+b8_d4_counter*b8_d4_multiplier+
+    b4_d1_counter*b4_d1_multiplier+b4_d2_counter*b4_d2_multiplier+
+    b2_d1_counter*b2_d1_multiplier+uncomp_counter*uncompressed_line_size;
+    
+    printf("\t Final byte size: %d | %d |%d\n",3*(compression_lines/2),final_byte,final_byte+(3*(compression_lines/2)));
 
     //free_globals_BDI(matrix_size);
 }
@@ -752,19 +819,22 @@ void iBDI(int width,int height,unsigned char** red,unsigned char** green,unsigne
 
 unsigned char* decompression_unit(long* uncompression_matrix,int* bits_matrix){
     char* line;
-    int first=1,code=1000*(int)uncompression_matrix[0]+100*(int)uncompression_matrix[1]+10*(int)uncompression_matrix[2]+(int)uncompression_matrix[3];
+    int first=1,code=0;
     long adder_result=0;
     int base0,base1,base2,base3,base4,base5,base6,base7,value0,value1,value2,value3,value4,value5,value6,value7;
 
     line=(unsigned char*)malloc(uncompressed_line_size*sizeof(unsigned char));
     //printf("Code is %d\n",code);
+    code=1000*(int)uncompression_matrix[0]+100*(int)uncompression_matrix[1]+10*(int)uncompression_matrix[2]+(int)uncompression_matrix[3];
     switch (code)
     {
         case 0:
             if(uncompressed_line_size==8){
                 memcpy(line,zero_line_8,8);
-            }else{
+            }else if(uncompressed_line_size==32){
                 memcpy(line,zero_line_32,32);
+            }else{
+                memcpy(line,zero_line_64,64);
             }
             break;
         case 1:
@@ -962,6 +1032,7 @@ unsigned char* decompression_unit(long* uncompression_matrix,int* bits_matrix){
             printf("Wrong Code %d\n",code);
             break;
     }
+    free(line);
 }
 
 void free_globals_BDI(int matrix_size){
@@ -1039,7 +1110,7 @@ unsigned char** BDI_allocate_compression_matrix(int matrix_size,int width,int he
     
     for(int i=0;i<compression_lines;i++){
         compressed_matrix[i]=(unsigned char*)malloc(uncompressed_line_size*sizeof(unsigned char));
-        compressed_matrix[i]=extract_line(width,height,i,matrix);
+        extract_line(width,height,i,matrix,compressed_matrix[i]);
     }
     return compressed_matrix;
 }
