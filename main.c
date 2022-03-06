@@ -11,6 +11,8 @@
 int width=0;
 int height=0;
 
+int floats=1;
+
 /*
 
 // Reads a BMP image and returns a poiner to a BMP struct
@@ -357,6 +359,12 @@ void run_BDI(int argc,char const *argv[]){
     unsigned char** red;
     unsigned char** blue;
     unsigned char** green;
+    unsigned char** red_floats;
+    unsigned char** blue_floats;
+    unsigned char** green_floats;
+    unsigned int int_buffer;
+    float float_buffer;
+    int byte1,byte2,byte3,byte4;
     BMP *bmp,*compressed_photo,*newly_compressed;
 
     bmp=bopen(argv[1]);
@@ -365,6 +373,7 @@ void run_BDI(int argc,char const *argv[]){
     height=get_height(bmp);
 
     bwrite(bmp, "ORIGINAL.bmp");
+
 
     //ANCHOR alocação de matrizes
     red=(unsigned char**)malloc(height*sizeof(unsigned char*));
@@ -380,17 +389,73 @@ void run_BDI(int argc,char const *argv[]){
         green[i]=(unsigned char*)malloc(width*sizeof(unsigned char));
     }
 
+    if(floats==1){
+        red_floats=(unsigned char**)malloc(height*sizeof(unsigned char*));
+        for(int i=0;i<height;i++){
+            red_floats[i]=(unsigned char*)malloc((4*width)*sizeof(unsigned char));
+        }
+        blue_floats=(unsigned char**)malloc(height*sizeof(unsigned char*));
+        for(int i=0;i<height;i++){
+            blue_floats[i]=(unsigned char*)malloc((4*width)*sizeof(unsigned char));
+        }
+        green_floats=(unsigned char**)malloc(height*sizeof(unsigned char*));
+        for(int i=0;i<height;i++){
+            green_floats[i]=(unsigned char*)malloc((4*width)*sizeof(unsigned char));
+        }
+    }
+
     for(int i=0;i<height;i++){
         for(int j=0;j<width;j++){
             get_pixel_rgb(bmp, j,  i, &red[i][j], &green[i][j], &blue[i][j]);
+            if(floats==1){
+                float_buffer=((float)red[i][j])/255;
+                memcpy(&int_buffer, &float_buffer, sizeof(int_buffer));
+                byte1 = (long)((int_buffer<<24)>>24);
+                byte2 = (long)((int_buffer<<16)>>24);
+                byte3 = (long)((int_buffer<<8)>>24);
+                byte4 = (long)(int_buffer>>24);
+                red_floats[i][(j*4)+0]=byte4;
+                red_floats[i][(j*4)+1]=byte3;
+                red_floats[i][(j*4)+2]=byte2;
+                red_floats[i][(j*4)+3]=byte1;
+                //printf("Number %d is float %f with bytes %x%x%x%x\n",red[i][j],float_buffer,byte4,byte3,byte2,byte1);
+                float_buffer=((float)blue[i][j])/255;
+                byte1 = (long)((int_buffer<<24)>>24);
+                byte2 = (long)((int_buffer<<16)>>24);
+                byte3 = (long)((int_buffer<<8)>>24);
+                byte4 = (long)(int_buffer>>24);
+                blue_floats[i][(j*4)+0]=byte4;
+                blue_floats[i][(j*4)+1]=byte3;
+                blue_floats[i][(j*4)+2]=byte2;
+                blue_floats[i][(j*4)+3]=byte1;
+                float_buffer=((float)green[i][j])/255;
+                byte1 = (long)((int_buffer<<24)>>24);
+                byte2 = (long)((int_buffer<<16)>>24);
+                byte3 = (long)((int_buffer<<8)>>24);
+                byte4 = (long)(int_buffer>>24);
+                green_floats[i][(j*4)+0]=byte4;
+                green_floats[i][(j*4)+1]=byte3;
+                green_floats[i][(j*4)+2]=byte2;
+                green_floats[i][(j*4)+3]=byte1;
+            }
         }
     }
+
+    /*printf("Line 0 is:\n");
+    for(int i=0;i<32;i++){
+        printf("%d_%x|",red[0][i],red[0][i]);
+    }
+    printf("\n");*/
 
     difference = clock() - before;
     msec = difference * 1000 / CLOCKS_PER_SEC;
     printf("RESET: Time taken %d seconds %d milliseconds\n",
     msec/1000, msec%1000);
-    BDI(width,height,red,green,blue);
+    if(floats==1){
+        BDI(4*width,height,red_floats,green_floats,blue_floats);
+    }else{
+        BDI(width,height,red,green,blue);
+    }
     difference = clock() - before;
     msec = difference * 1000 / CLOCKS_PER_SEC;
     printf("BDI: Time taken %d seconds %d milliseconds\n",
@@ -446,7 +511,11 @@ void run_BDI(int argc,char const *argv[]){
     msec = difference * 1000 / CLOCKS_PER_SEC;
     printf("RESET: Time taken %d seconds %d milliseconds\n",
     msec/1000, msec%1000);
-    iBDI(width,height,red,green,blue);
+    if(floats==1){
+        iBDI(4*width,height,red_floats,green_floats,blue_floats);
+    }else{
+        iBDI(width,height,red,green,blue);
+    }
     difference = clock() - before;
     msec = difference * 1000 / CLOCKS_PER_SEC;
     printf("iBDI: Time taken %d seconds %d milliseconds\n",
@@ -478,6 +547,23 @@ void run_BDI(int argc,char const *argv[]){
         free(green[i]);
     }
     free(green);
+
+    if(floats==1){
+        for(int i=0;i<height;i++){
+            free(red_floats[i]);
+        }
+        free(red_floats);
+
+        for(int i=0;i<height;i++){
+            free(blue_floats[i]);
+        }
+        free(blue_floats);
+        
+        for(int i=0;i<height;i++){
+            free(green_floats[i]);
+        }
+        free(green_floats);
+    }
 }
 
 int main(int argc,char const *argv[]) {

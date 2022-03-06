@@ -38,10 +38,38 @@ int** bits_matrix_red;
 int** bits_matrix_green;
 int** bits_matrix_blue;
 
-int uncompressed_line_size=8;
+int uncompressed_line_size=32;
 
-long compressible_line[8]; //NOTE uncompressed_line_size
-int bit_line[8]; //NOTE uncompressed_line_size
+long compressible_line[32]; //NOTE uncompressed_line_size
+int bit_line[32]; //NOTE uncompressed_line_size
+
+long ftoh(float number1,float number2,int base_size){
+    unsigned int u1,u2;
+    long base_number,x1,x2;
+
+    if(base_size==8){
+        memcpy(&u1, &number1, sizeof (u1));
+        x1 = (long)u1;
+        //printf("hex is %d | %x\n",u1, u1);
+        //printf("x1 is %lu | %lx\n",x1,x1);
+        memcpy(&u2, &number2, sizeof (u2));
+        x2 = (long)u2;
+        //printf("hex is %d | %x",u2, u2);
+        //printf("x2 is %lu | %lx\n",x2,x2);
+        base_number = x2<<32|x1;
+        //printf("Base is %lu | %lx\n",base_number,base_number);
+        return base_number;
+    }else{
+        memcpy(&u1, &number1, sizeof (u1));
+        x1 = (long)u1;
+        return x1;
+    }  //NOTE when base_size==2, perform this step
+        /*memcpy(&u2, &number1, sizeof (u2));
+        x1 = (long)((u2<<16)>>16);
+        x2 = (long)(u2>>16);*/
+        //printf("x1 is %lu | %lx\n",x1,x1);
+        //printf("x2 is %lu | %lx\n",x2,x2);
+}
 
 int zeros_unit(unsigned char* line){
     int base_size=1,output=1;
@@ -557,7 +585,6 @@ void assembly_cache_line(unsigned char* line,long* store){
             return;
         }
     }else{
-
         //linha com 32 entradas: fazer as diferencas
         //printf("\nStart\n");
         //printf("\t\tUnit tested: Zeros\n");
@@ -578,7 +605,9 @@ void assembly_cache_line(unsigned char* line,long* store){
             }
             for(int i=0;i<4+8;i++){
                 store[i+4]=compressible_line[i];
+                //printf("%ld|",store[i+4]);
             }
+            //printf("\n");
             rep_val_counter++;
             return;
         }
@@ -697,6 +726,12 @@ void BDI(int width,int height,unsigned char** red,unsigned char** green,unsigned
     compression_matrix_red=BDI_allocate_compression_matrix(matrix_size,width,height,red);
     compression_matrix_green=BDI_allocate_compression_matrix(matrix_size,width,height,green);
     compression_matrix_blue=BDI_allocate_compression_matrix(matrix_size,width,height,blue);
+
+    /*printf("Line 0 is:\n");
+    for(int i=0;i<uncompressed_line_size;i++){
+        printf("%d_%x|",compression_matrix_red[0][i],compression_matrix_red[0][i]);
+    }
+    printf("\n");*/
 
     uncompression_matrix_red=BDI_allocate_decompression_matrix(compression_lines,(4+uncompressed_line_size));
     uncompression_matrix_green=BDI_allocate_decompression_matrix(compression_lines,(4+uncompressed_line_size));
